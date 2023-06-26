@@ -25,9 +25,19 @@ describe("MI PRIMER TOKEN TESTING", function () {
   // Estos dos métodos a continuación publican los contratos en cada red
   // Se usan en distintos tests de manera independiente
   // Ver ejemplo de como instanciar los contratos en deploy.js
-  async function deployNftSC() {}
+  async function deployNftSC() {
+    nftContract = await deploySC("PC3NFTUpgradeable",[]);
+    await ex(nftContract, "grantRole", [MINTER_ROLE, relayer.address], "GR");
+  }
 
-  async function deployPublicSaleSC() {}
+  async function deployPublicSaleSC() {
+    miPrimerToken = await deploySC("PC3TokenUpgradeable",[]);
+    publicSale = await deploySC("PublicSale",[]);
+    await ex(publicSale, "setPC3Token", [miPrimerToken.address], "SPC3");
+    await ex(publicSale, "setGnosisWallet", [gnosis.address], "SGW");
+    await ex(publicSale, "setNumberNFTs", [30], "SetUp Number NFTs");
+    await ex(miPrimerToken, "mint", [bob.address, cienmilTokens], "TKN Mint");
+  }
 
   describe("Mi Primer Nft Smart Contract", () => {
     // Se publica el contrato antes de cada test
@@ -35,19 +45,34 @@ describe("MI PRIMER TOKEN TESTING", function () {
       await deployNftSC();
     });
 
-    it("Verifica nombre colección", async () => {});
+    it("Verifica nombre colección", async () => {
+      expect(await nftContract.name()).to.be.equal(name);
+    });
 
-    it("Verifica símbolo de colección", async () => {});
+    it("Verifica símbolo de colección", async () => {
+      expect(await nftContract.symbol()).to.be.equal(symbol);
+    });
 
-    it("No permite acuñar sin privilegio", async () => {});
+    it("No permite acuñar sin privilegio", async () => {
+      var mensajeError = "AccessControl: account " + bob.address.toLowerCase() + " is missing role " + MINTER_ROLE;
+      await expect(nftContract.connect(bob).safeMint(bob.address,1)).to.be.revertedWith(mensajeError);
+    });
 
-    it("No permite acuñar doble id de Nft", async () => {});
+    it("No permite acuñar doble id de Nft", async () => {
+      await nftContract.connect(relayer).safeMint(bob.address,1);
+      await expect(nftContract.connect(relayer).safeMint(bob.address,1)).to.be.revertedWith("ERC721: token already minted");
+    });
 
     it("Verifica rango de Nft: [1, 30]", async () => {
       // Mensaje error: "NFT: Token id out of range"
+      await expect(nftContract.connect(relayer).safeMint(bob.address,31)).to.be.revertedWith("NFT: Token id out of range");
     });
 
-    it("Se pueden acuñar todos (30) los Nfts", async () => {});
+    it("Se pueden acuñar todos (30) los Nfts", async () => {
+      for(var i=0; i<30; i++){
+        expect(await nftContract.connect(relayer).safeMint(bob.address,i)).to.be.ok;
+      }
+    });
   });
 
   describe("Public Sale Smart Contract", () => {
